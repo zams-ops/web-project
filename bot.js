@@ -16,26 +16,34 @@ if (!BOT_TOKEN) {
 
 const bot = new Telegraf(BOT_TOKEN);
 
-// === DB FILE ===
-const DB_FILE = "./db.json";
+// === FILE DATABASE ===
+const PRODUCT_FILE = "./products.json";
+const PAYMENT_FILE = "./payments.json";
 
-function loadDB() {
-    if (!fs.existsSync(DB_FILE)) {
-        fs.writeFileSync(DB_FILE, JSON.stringify({ products: [], payments: [] }, null, 2));
-    }
-    return JSON.parse(fs.readFileSync(DB_FILE));
+function loadProducts() {
+    if (!fs.existsSync(PRODUCT_FILE)) fs.writeFileSync(PRODUCT_FILE, "[]");
+    return JSON.parse(fs.readFileSync(PRODUCT_FILE));
 }
 
-function saveDB(db) {
-    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+function saveProducts(data) {
+    fs.writeFileSync(PRODUCT_FILE, JSON.stringify(data, null, 2));
 }
 
-// === SESSION memory ===
+function loadPayments() {
+    if (!fs.existsSync(PAYMENT_FILE)) fs.writeFileSync(PAYMENT_FILE, "[]");
+    return JSON.parse(fs.readFileSync(PAYMENT_FILE));
+}
+
+function savePayments(data) {
+    fs.writeFileSync(PAYMENT_FILE, JSON.stringify(data, null, 2));
+}
+
+// === SESSION ===
 const userSession = {};
 
 
 // =====================
-// === BOT COMMANDS ====
+// === START COMMAND ====
 // =====================
 
 bot.start((ctx) => {
@@ -58,27 +66,20 @@ bot.start((ctx) => {
 
 bot.action("add_product", (ctx) => {
     const uid = ctx.from.id;
-
-    userSession[uid] = {
-        step: "prod_name",
-        data: {}
-    };
-
+    userSession[uid] = { step: "prod_name", data: {} };
     ctx.reply("Masukkan nama produk:");
 });
 
 
-// === TEXT HANDLER ===
-
+// === TEXT INPUT HANDLER ===
 bot.on("text", (ctx) => {
     const uid = ctx.from.id;
     const msg = ctx.message.text;
-
     if (!userSession[uid]) return;
 
     const S = userSession[uid];
 
-    // === PRODUK ===
+    // --- Produk ---
     if (S.step === "prod_name") {
         S.data.nama = msg;
         S.step = "prod_price";
@@ -101,28 +102,27 @@ bot.on("text", (ctx) => {
     if (S.step === "prod_image") {
         S.data.gambar = msg;
 
-        const db = loadDB();
-        db.products.push(S.data);
-        saveDB(db);
+        const list = loadProducts();
+        list.push(S.data);
+        saveProducts(list);
 
         delete userSession[uid];
         return ctx.reply("✅ Produk berhasil ditambahkan!");
     }
 
-    // === PAYMENT ===
-
+    // --- Payment ---
     if (S.step === "payment_method") {
         S.data.method = msg;
         S.step = "payment_number";
-        return ctx.reply(`Masukkan nomor/ID pembayaran untuk *${msg}*:`);
+        return ctx.reply(`Masukkan nomor/ID untuk *${msg}*:`);
     }
 
     if (S.step === "payment_number") {
         S.data.number = msg;
 
-        const db = loadDB();
-        db.payments.push(S.data);
-        saveDB(db);
+        const list = loadPayments();
+        list.push(S.data);
+        savePayments(list);
 
         delete userSession[uid];
         return ctx.reply(`💳 Payment *${S.data.method}* berhasil ditambahkan!`);
@@ -130,19 +130,18 @@ bot.on("text", (ctx) => {
 });
 
 
-// ===================
-// === LIST PRODUK ===
-// ===================
+// ======================
+// ==== LIST PRODUK =====
+// ======================
 
 bot.action("list_produk", (ctx) => {
-    const db = loadDB();
+    const list = loadProducts();
 
-    if (db.products.length === 0)
-        return ctx.reply("📭 Produk masih kosong.");
+    if (list.length === 0) return ctx.reply("📭 Produk masih kosong.");
 
     let text = "📦 *Daftar Produk:*\n\n";
 
-    db.products.forEach((p, i) => {
+    list.forEach((p, i) => {
         text += `#${i + 1}\n📌 *${p.nama}*\n💰 ${p.harga}\n📝 ${p.deskripsi}\n🖼 ${p.gambar}\n\n`;
     });
 
@@ -151,16 +150,15 @@ bot.action("list_produk", (ctx) => {
 
 
 // ===========================
-// === DELETE PRODUK ========
+// ===== DELETE PRODUK =======
 // ===========================
 
 bot.action("delete_product", (ctx) => {
-    const db = loadDB();
+    const list = loadProducts();
 
-    if (db.products.length === 0)
-        return ctx.reply("Tidak ada produk.");
+    if (list.length === 0) return ctx.reply("Tidak ada produk.");
 
-    const buttons = db.products.map((p, i) => [
+    const buttons = list.map((p, i) => [
         Markup.button.callback(`${p.nama} (ID ${i})`, `delprod_${i}`)
     ]);
 
@@ -169,41 +167,25 @@ bot.action("delete_product", (ctx) => {
 
 bot.action(/delprod_(\d+)/, (ctx) => {
     const id = Number(ctx.match[1]);
-    const db = loadDB();
-    const removed = db.products.splice(id, 1);
-    saveDB(db);
+    const list = loadProducts();
+
+    const removed = list.splice(id, 1);
+    saveProducts(list);
 
     ctx.reply(`🗑 Produk *${removed[0].nama}* berhasil dihapus.`);
 });
 
 
-// =====================
-// === ADD PAYMENT =====
-// =====================
-
-bot.action("add_payment", (ctx) => {
-    const uid = ctx.from.id;
-
-    userSession[uid] = {
-        step: "payment_method",
-        data: {}
-    };
-
-    ctx.reply("Masukkan metode payment (Dana, OVO, BRI, dll):");
-});
-
-
-// =====================
-// === DELETE PAYMENT ==
-// =====================
+// =======================
+// ==== DELETE PAYMENT ====
+// =======================
 
 bot.action("del_payment", (ctx) => {
-    const db = loadDB();
+    const list = loadPayments();
 
-    if (db.payments.length === 0)
-        return ctx.reply("Belum ada payment.");
+    if (list.length === 0) return ctx.reply("Belum ada payment.");
 
-    const buttons = db.payments.map((p, i) => [
+    const buttons = list.map((p, i) => [
         Markup.button.callback(`${p.method} (${p.number})`, `delpay_${i}`)
     ]);
 
@@ -212,21 +194,21 @@ bot.action("del_payment", (ctx) => {
 
 bot.action(/delpay_(\d+)/, (ctx) => {
     const id = Number(ctx.match[1]);
-    const db = loadDB();
-    const removed = db.payments.splice(id, 1);
-    saveDB(db);
+    const list = loadPayments();
+
+    const removed = list.splice(id, 1);
+    savePayments(list);
 
     ctx.reply(`❌ Payment *${removed[0].method}* berhasil dihapus.`);
 });
 
 
-// =====================
-// ===== API LIST ======
-// =====================
+// ===================
+// ====== API ========
+// ===================
 
-app.get("/db.json", (req, res) => {
-    res.json(loadDB());
-});
+app.get("/products", (req, res) => res.json(loadProducts()));
+app.get("/payments", (req, res) => res.json(loadPayments()));
 
 app.get("/", (req, res) => {
     res.sendFile(__dirname + "/public/index.html");
@@ -234,10 +216,9 @@ app.get("/", (req, res) => {
 
 
 // =====================
-// == START SERVICES ====
+// ==== START SERVER ====
 // =====================
 
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => console.log(`🌐 Server berjalan di port ${PORT}`));
 bot.launch().then(() => console.log("🤖 Bot Telegram aktif!"));
