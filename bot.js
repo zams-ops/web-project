@@ -10,7 +10,7 @@ app.use(express.static("public"));
 // === CONFIG ===
 const BOT_TOKEN = process.env.BOT_TOKEN;
 if (!BOT_TOKEN) {
-    console.error("❌ BOT_TOKEN belum di set di .env");
+    console.error("❌ BOT_TOKEN belum di set di Railway Variables!");
     process.exit(1);
 }
 
@@ -30,7 +30,7 @@ function saveDB(db) {
     fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
 }
 
-// === SESSION DATA ===
+// === SESSION memory ===
 const userSession = {};
 
 
